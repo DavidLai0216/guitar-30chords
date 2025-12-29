@@ -114,4 +114,162 @@
         
         /* 弦的位置 (1-6弦) */
         .s1 { left: 100%; } .s2 { left: 80%; } .s3 { left: 60%; }
-        .s4
+        .s4 { left: 40%; } .s5 { left: 20%; } .s6 { left: 0%; }
+
+        /* 格的位置 (1-4格) */
+        .f1 { top: 20%; } .f2 { top: 40%; } .f3 { top: 60%; } .f4 { top: 80%; }
+
+        .finger {
+            position: absolute;
+            width: 22px;
+            height: 22px;
+            background: #e74c3c;
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 10;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+        }
+
+        .info-text { margin-top: 20px; font-size: 1.1rem; color: #555; }
+        .info-text b { color: var(--primary); }
+
+        @media (max-width: 768px) {
+            .chord-grid { grid-template-columns: repeat(4, 1fr); }
+            .main-container { flex-direction: column-reverse; align-items: center; }
+        }
+    </style>
+</head>
+<body>
+
+    <h1>🎸 互動式吉他和弦庫</h1>
+    
+    <div class="controls">
+        <button id="soundToggle" onclick="toggleSound()">🔇 聲音開關：已關閉</button>
+        <p style="font-size: 0.9rem; color: #888; margin-top: 8px;">開啟後點選和弦即可自動發聲</p>
+    </div>
+
+    <div class="main-container">
+        <div class="chord-grid" id="chordGrid"></div>
+
+        <div class="display-card">
+            <h2 id="currentName" style="margin: 0; font-size: 2rem; color: var(--accent);">請選擇和弦</h2>
+            <div class="fretboard" id="fretboard">
+                <div class="string s1"></div><div class="string s2"></div>
+                <div class="string s3"></div><div class="string s4"></div>
+                <div class="string s5"></div><div class="string s6"></div>
+                <div class="fret f1"></div><div class="fret f2"></div>
+                <div class="fret f3"></div><div class="fret f4"></div>
+            </div>
+            <div class="info-text">
+                組成音：<b id="chordNotes">-</b>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- 完整 30 個和弦資料庫 ---
+        const chords = {
+            "C": { fingers: [{s:5, f:3}, {s:4, f:2}, {s:2, f:1}], notes: "C, E, G", freq: ["C3", "E3", "G3", "C4", "E4"] },
+            "G": { fingers: [{s:6, f:3}, {s:5, f:2}, {s:1, f:3}], notes: "G, B, D", freq: ["G2", "B2", "D3", "G3", "B3", "G4"] },
+            "D": { fingers: [{s:3, f:2}, {s:2, f:3}, {s:1, f:2}], notes: "D, F#, A", freq: ["D3", "A3", "D4", "F#4"] },
+            "A": { fingers: [{s:4, f:2}, {s:3, f:2}, {s:2, f:2}], notes: "A, C#, E", freq: ["A2", "E3", "A3", "C#4", "E4"] },
+            "E": { fingers: [{s:5, f:2}, {s:4, f:2}, {s:3, f:1}], notes: "E, G#, B", freq: ["E2", "B2", "E3", "G#3", "B3", "E4"] },
+            "Am": { fingers: [{s:4, f:2}, {s:3, f:2}, {s:2, f:1}], notes: "A, C, E", freq: ["A2", "E3", "A3", "C4", "E4"] },
+            "Em": { fingers: [{s:5, f:2}, {s:4, f:2}], notes: "E, G, B", freq: ["E2", "B2", "E3", "G3", "B3", "E4"] },
+            "Dm": { fingers: [{s:3, f:2}, {s:2, f:3}, {s:1, f:1}], notes: "D, F, A", freq: ["D3", "A3", "D4", "F4"] },
+            "F": { fingers: [{s:6, f:1}, {s:5, f:3}, {s:4, f:3}, {s:3, f:2}, {s:2, f:1}, {s:1, f:1}], notes: "F, A, C", freq: ["F2", "C3", "F3", "A3", "C4", "F4"] },
+            "Bm": { fingers: [{s:5, f:2}, {s:4, f:4}, {s:3, f:4}, {s:2, f:3}, {s:1, f:2}], notes: "B, D, F#", freq: ["B2", "F#3", "B3", "D4", "F#4"] },
+            "C7": { fingers: [{s:5, f:3}, {s:4, f:2}, {s:3, f:3}, {s:2, f:1}], notes: "C, E, G, Bb", freq: ["C3", "E3", "Bb3", "C4", "E4"] },
+            "G7": { fingers: [{s:6, f:3}, {s:5, f:2}, {s:1, f:1}], notes: "G, B, D, F", freq: ["G2", "B2", "D3", "G3", "B3", "F4"] },
+            "D7": { fingers: [{s:3, f:2}, {s:2, f:1}, {s:1, f:2}], notes: "D, F#, A, C", freq: ["D3", "A3", "C4", "F#4"] },
+            "A7": { fingers: [{s:4, f:2}, {s:2, f:2}], notes: "A, C#, E, G", freq: ["A2", "E3", "G3", "C#4", "E4"] },
+            "E7": { fingers: [{s:5, f:2}, {s:3, f:1}], notes: "E, G#, B, D", freq: ["E2", "B2", "D3", "G#3", "B3", "E4"] },
+            "Fmaj7": { fingers: [{s:4, f:3}, {s:3, f:2}, {s:2, f:1}], notes: "F, A, C, E", freq: ["F3", "A3", "C4", "E4"] },
+            "Cadd9": { fingers: [{s:5, f:3}, {s:4, f:2}, {s:2, f:3}], notes: "C, E, G, D", freq: ["C3", "E3", "G3", "D4"] },
+            "Asus4": { fingers: [{s:4, f:2}, {s:3, f:2}, {s:2, f:3}], notes: "A, D, E", freq: ["A2", "E3", "A3", "D4", "E4"] },
+            "Dsus4": { fingers: [{s:3, f:2}, {s:2, f:3}, {s:1, f:3}], notes: "D, G, A", freq: ["D3", "A3", "D4", "G4"] },
+            "B7": { fingers: [{s:5, f:2}, {s:4, f:1}, {s:3, f:2}, {s:1, f:2}], notes: "B, D#, F#, A", freq: ["B2", "D#3", "A3", "B3", "F#4"] },
+            "Am7": { fingers: [{s:4, f:2}, {s:2, f:1}], notes: "A, C, E, G", freq: ["A2", "E3", "G3", "C4", "E4"] },
+            "Em7": { fingers: [{s:5, f:2}, {s:4, f:2}, {s:2, f:3}], notes: "E, G, B, D", freq: ["E2", "B2", "D3", "G3", "D4", "E4"] },
+            "Dm7": { fingers: [{s:3, f:2}, {s:2, f:1}, {s:1, f:1}], notes: "D, F, A, C", freq: ["D3", "A3", "C4", "F4"] },
+            "Gmaj7": { fingers: [{s:6, f:3}, {s:1, f:2}], notes: "G, B, D, F#", freq: ["G2", "B2", "D3", "G3", "B3", "F#4"] },
+            "Bb": { fingers: [{s:5, f:1}, {s:4, f:3}, {s:3, f:3}, {s:2, f:3}], notes: "Bb, D, F", freq: ["Bb2", "F3", "Bb3", "D4", "F4"] },
+            "Gm": { fingers: [{s:6, f:3}, {s:5, f:5}, {s:4, f:5}, {s:3, f:3}, {s:2, f:3}, {s:1, f:3}], notes: "G, Bb, D", freq: ["G2", "D3", "G3", "Bb3", "D4", "G4"] },
+            "F#m": { fingers: [{s:6, f:2}, {s:5, f:4}, {s:4, f:4}, {s:3, f:2}, {s:2, f:2}, {s:1, f:2}], notes: "F#, A, C#", freq: ["F#2", "C#3", "F#3", "A3", "C#4", "F#4"] },
+            "Bm7": { fingers: [{s:5, f:2}, {s:3, f:2}, {s:2, f:3}], notes: "B, D, F#, A", freq: ["B2", "F#3", "A3", "D4", "F#4"] },
+            "Emaj7": { fingers: [{s:5, f:2}, {s:4, f:1}, {s:3, f:1}], notes: "E, G#, B, D#", freq: ["E2", "B2", "D#3", "G#3", "B3", "E4"] },
+            "G6": { fingers: [{s:6, f:3}, {s:5, f:2}], notes: "G, B, D, E", freq: ["G2", "B2", "D3", "G3", "B3", "E4"] }
+        };
+
+        const synth = new Tone.PolySynth(Tone.Synth).toDestination();
+        let isSoundOn = false;
+        let currentChordKey = null;
+
+        // 生成 30 個按鈕
+        const grid = document.getElementById('chordGrid');
+        Object.keys(chords).forEach(name => {
+            const btn = document.createElement('button');
+            btn.className = 'chord-btn';
+            btn.innerText = name;
+            btn.onclick = () => selectChord(name, btn);
+            grid.appendChild(btn);
+        });
+
+        // 聲音開關切換
+        function toggleSound() {
+            isSoundOn = !isSoundOn;
+            const btn = document.getElementById('soundToggle');
+            if (isSoundOn) {
+                btn.innerText = "🔊 聲音開關：已開啟";
+                btn.classList.add('active');
+                Tone.start();
+            } else {
+                btn.innerText = "🔇 聲音開關：已關閉";
+                btn.classList.remove('active');
+            }
+        }
+
+        // 選擇和弦邏輯
+        function selectChord(name, btnElement) {
+            // 更新按鈕樣式
+            document.querySelectorAll('.chord-btn').forEach(b => b.classList.remove('active'));
+            btnElement.classList.add('active');
+
+            const chord = chords[name];
+            currentChordKey = name;
+            
+            // 更新文字
+            document.getElementById('currentName').innerText = name;
+            document.getElementById('chordNotes').innerText = chord.notes;
+
+            // 繪製指法
+            const board = document.getElementById('fretboard');
+            document.querySelectorAll('.finger').forEach(f => f.remove());
+
+            chord.fingers.forEach(f => {
+                const dot = document.createElement('div');
+                dot.className = 'finger';
+                // 計算位置
+                const x = (6 - f.s) * 20; // 弦
+                const y = (f.f * 20) - 10; // 格 (取格中間)
+                dot.style.left = x + '%';
+                dot.style.top = y + '%';
+                board.appendChild(dot);
+            });
+
+            // 如果聲音開啟，自動播放
+            if (isSoundOn) {
+                playChordSound(chord.freq);
+            }
+        }
+
+        function playChordSound(frequencies) {
+            const now = Tone.now();
+            frequencies.forEach((f, i) => {
+                // 模擬輕微撥弦延遲感 (Strumming)
+                synth.triggerAttackRelease(f, "2n", now + i * 0.04);
+            });
+        }
+    </script>
+</body>
+</html>
